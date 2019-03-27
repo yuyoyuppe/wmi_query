@@ -11,6 +11,9 @@ paths = {
   generated_api = "src/generated_api/",
   tests = "src/tests/",
   build = "build/",
+  deps = {
+    pugixml = "deps/pugixml/src/"
+  }
 }
 location(paths.build)
 
@@ -60,101 +63,67 @@ local function generate_constants_header(constants, file_path)
   os.remove(tmp_filename)
 end
 
+local function make_common_project_conf(src_path, use_pch)
+  if use_pch then
+    pchheader "pch.h"
+    pchsource (src_path .. "pch.cpp")
+  end
+  includedirs{src_path, paths.build}
+  basedir (src_path)
+  targetdir (paths.build .. "bin")
+  objdir (paths.build .. "obj")
+  files {src_path .. "**.cpp", src_path .. "**.h"}
+  filter "configurations:Debug"
+    symbols "On"
+    runtime "Debug"
+    defines { "DEBUG" }
+    targetsuffix "_d"
+  filter "configurations:Release"
+    -- symbols "Off"
+    symbols "FastLink"
+    defines { "NDEBUG" }
+    runtime "Release"
+    optimize "On"
+end
+
 project "core"
-  generate_constants_header(
-    { use_exceptions = false, use_utf8_strings = true},
-    paths.build .. "core_common_constants.h")
-  generate_constants_header(
-    { debug = { log_verbosity_level = "log_verbosity::verbose" }, release = { log_verbosity_level = "log_verbosity::info" }},
-    paths.build .. "core_log_constants.h"
-  )
+  kind "StaticLib"
+  generate_constants_header({ use_exceptions = false, use_utf8_strings = true},
+                            paths.build .. "core_common_constants.h")
+  generate_constants_header({ debug = { log_verbosity_level = "log_verbosity::verbose" }, release = { log_verbosity_level = "log_verbosity::info" }},
+                            paths.build .. "core_log_constants.h")
   defines
   {
     "_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING",
   }
-
-  links {"wbemuuid.lib"}
-  targetdir (paths.build .. "bin")
-  objdir (paths.build .. "obj")
-  basedir (paths.core)
-  files {paths.core .. "**.cpp", paths.core .. "**.h"}
-  includedirs {paths.core, paths.build}
-  pchheader "pch.h"
-  pchsource (paths.core .. "pch.cpp")
-  kind "StaticLib"
-  filter "configurations:Debug"
-    symbols "On"
-    runtime "Debug"
-    defines { "DEBUG" }
-    targetsuffix "d"
-  filter "configurations:Release"
-    symbols "Off"
-    defines { "NDEBUG" }
-    runtime "Release"
-    optimize "On"
+  links {"wbemuuid.lib", "pugixml"}
+  includedirs {paths.deps.pugixml}
+  make_common_project_conf(paths.core, true)
 
 project "api_generator"
-  generate_constants_header(
-    { wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"' },
-      paths.build .. "generator_common_constants.h")
-  targetdir (paths.build .. "bin")
-  objdir (paths.build .. "obj")
-  links { "core" }
-  basedir (paths.api_generator)
-  files {paths.api_generator .. "**.cpp", paths.api_generator .. "**.h"}
-  includedirs {paths.api_generator, paths.core, paths.build}
-  pchheader "pch.h"
-  pchsource (paths.api_generator .. "pch.cpp")
   kind "ConsoleApp"
-  filter "configurations:Debug"
-    symbols "On"
-    runtime "Debug"
-    defines { "DEBUG" }
-    targetsuffix "d"
-  filter "configurations:Release"
-    symbols "Off"
-    defines { "NDEBUG" }
-    runtime "Release"
-    optimize "On"
+  generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"' },
+                            paths.build .. "generator_common_constants.h")
+  links { "core", "pugixml" }
+  includedirs {paths.core, paths.deps.pugixml}
+  make_common_project_conf(paths.api_generator, true)
 
 project "generated_api"
-  targetdir (paths.build .. "bin")
-  objdir (paths.build .. "obj")
-  links { "core" }
-  basedir (paths.generated_api)
-  files {paths.generated_api .. "**.cpp", paths.generated_api .. "**.h"}
-  includedirs {paths.generated_api, paths.core, paths.build}
-  pchheader "pch.h"
-  pchsource (paths.generated_api .. "pch.cpp")
   kind "StaticLib"
-  filter "configurations:Debug"
-    symbols "On"
-    runtime "Debug"
-    defines { "DEBUG" }
-    targetsuffix "d"
-  filter "configurations:Release"
-    symbols "Off"
-    defines { "NDEBUG" }
-    runtime "Release"
-    optimize "On"
+  links { "core" }
+  defines {"_CRT_SECURE_NO_WARNINGS"}
+  buildoptions {"/bigobj"}
+  includedirs {paths.core, paths.deps.pugixml}
+  make_common_project_conf(paths.generated_api, true)
+  optimize "Size"
 
 project "tests"
-  targetdir (paths.build .. "bin")
-  objdir (paths.build .. "obj")
-  links { "generated_api" }
-  basedir (paths.tests)
-  files {paths.tests .. "**.cpp", paths.tests .. "**.h"}
-  includedirs {paths.tests, paths.core, paths.generated_api}
-  pchheader "pch.h"
-  pchsource (paths.tests .. "pch.cpp")
   kind "ConsoleApp"
-  filter "configurations:Debug"
-    symbols "On"
-    runtime "Debug"
-    defines { "DEBUG" }
-    targetsuffix "d"
-  filter "configurations:Release"
-    symbols "Off"
-    defines { "NDEBUG" }
-    runtime "Release"
-    optimize "On"
+  links { "generated_api" }
+  includedirs {paths.core, paths.generated_api}
+  make_common_project_conf(paths.tests, true)
+
+
+project "pugixml"
+  kind "StaticLib"
+  make_common_project_conf(paths.deps.pugixml)

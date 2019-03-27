@@ -6,10 +6,10 @@
 
 int main()
 {
-  for(const auto monitorID : WmiMonitorID::get_all_objects())
+  for(const auto obj : Win32_UserProfile::get_all_objects())
   {
-    const auto str = monitorID.to_string();
-    log(info, "woah: %s", str.c_str());
+    const auto str = obj.to_string();
+    log(info, "object:\n%s\n", str.c_str());
   }
   return 0;
 }

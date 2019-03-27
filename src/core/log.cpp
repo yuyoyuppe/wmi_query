@@ -30,7 +30,7 @@ void log(const log_verbosity lvl, const char * fmt, ...)
   
   va_list argptr;
   va_start(argptr, fmt);
-  _vsnprintf_s<buf_size>(buffer, buf_size - nUnavailableChars, fmt, argptr);
+  vsnprintf_s(buffer + nUnavailableChars, buf_size - nUnavailableChars, buf_size - nUnavailableChars - 2, fmt, argptr);
   va_end(argptr);
   strcat_s<buf_size>(buffer, "\n");
 

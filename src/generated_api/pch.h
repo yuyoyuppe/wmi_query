@@ -7,5 +7,8 @@
 #include <string>
 #include <algorithm>
 #include <sstream>
+#include <clocale>
+#include <ctime>
+
 
 #include <core.h>

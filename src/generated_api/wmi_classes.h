@@ -1,18 +1,41 @@
 #pragma once
 #include <string>
 #include <vector>
-struct WmiMonitorID
+#include <chrono>
+struct Win32_FolderRedirectionHealth
 {
-  bool Active;
-  uint8_t WeekOfManufacture;
-  std::string SerialNumberID;
-  std::string InstanceName;
-  std::string ManufacturerName;
-  std::string ProductCodeID;
-  std::string UserFriendlyName;
-  uint16_t YearOfManufacture;
+  std::string LastSuccessfulSyncTime;
+  uint8_t HealthStatus;
+  bool Redirected;
+  uint8_t LastSyncStatus;
+  bool OfflineAccessEnabled;
+  std::string LastSyncTime;
+  std::string OfflineFileNameFolderGUID;
 
-  static std::vector<WmiMonitorID> get_all_objects();
+  static std::vector<Win32_FolderRedirectionHealth> get_all_objects();
+  std::string to_string() const;
+};
+
+struct Win32_UserProfile
+{
+  uint32_t RefCount;
+  std::string LastUseTime;
+  uint8_t HealthStatus;
+  std::string LastUploadTime;
+  std::string LastAttemptedProfileDownloadTime;
+  std::string LastDownloadTime;
+  std::string LastAttemptedProfileUploadTime;
+  std::string LastBackgroundRegistryUploadTime;
+  bool Loaded;
+  std::string LocalPath;
+  bool RoamingConfigured;
+  uint32_t Status;
+  std::string SID;
+  std::string RoamingPath;
+  bool RoamingPreference;
+  bool Special;
+
+  static std::vector<Win32_UserProfile> get_all_objects();
   std::string to_string() const;
 };
 

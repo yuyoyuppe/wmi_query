@@ -1,9 +1,10 @@
 #include "pch.h"
 
 #include "log.h"
+#include "platform_error.h"
 #include <core_common_constants.h>
 
-WinAPIError::WinAPIError(const HRESULT result, const char* file, const int line)
+APIError::APIError(const HRESULT result, const char* file, const int line)
 {
   if(FAILED(result))
   {
@@ -21,4 +22,10 @@ WinAPIError::WinAPIError(const HRESULT result, const char* file, const int line)
     if constexpr(konst::use_exceptions)
       throw result;
   }
+}
+
+APIError::APIError(const pugi::xml_parse_result result, const char* file, const int line)
+{
+  if(!result)
+    log(error, "pugixml call at %s:%d failed: %s", file, line, result.description());
 }

@@ -9,3 +9,5 @@
 #include <unordered_set>
 
 #include <core.h>
+
+using namespace std::string_literals;
