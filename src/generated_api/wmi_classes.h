@@ -35,6 +35,21 @@ struct Win32_UserProfile
   bool RoamingPreference;
   bool Special;
 
+// object!
+  Win32_FolderRedirectionHealth AppDataRoaming;
+  Win32_FolderRedirectionHealth Desktop;
+  Win32_FolderRedirectionHealth StartMenu;
+  Win32_FolderRedirectionHealth Contacts;
+  Win32_FolderRedirectionHealth Documents;
+  Win32_FolderRedirectionHealth Pictures;
+  Win32_FolderRedirectionHealth Links;
+  Win32_FolderRedirectionHealth Downloads;
+  Win32_FolderRedirectionHealth Favorites;
+  Win32_FolderRedirectionHealth Music;
+  Win32_FolderRedirectionHealth SavedGames;
+  Win32_FolderRedirectionHealth Searches;
+  Win32_FolderRedirectionHealth Videos;
+
   static std::vector<Win32_UserProfile> get_all_objects();
   std::string to_string() const;
 };

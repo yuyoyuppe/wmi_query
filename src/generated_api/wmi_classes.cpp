@@ -2,11 +2,10 @@
 #include "pch.h"
 #include "wmi_classes.h"
 
-
 std::vector<Win32_FolderRedirectionHealth> Win32_FolderRedirectionHealth::get_all_objects()
 {
   std::vector<Win32_FolderRedirectionHealth> result;
-  WMIProvider::get().query("select * from Win32_FolderRedirectionHealth", [&](IWbemClassObject* o, const WmiConnection& connection, const pugi::xml_document& doc) {
+  WMIProvider::get().query("select * from Win32_FolderRedirectionHealth", [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc) {
     VARIANT v; CIMTYPE type; Win32_FolderRedirectionHealth cpp_obj;
     o->Get(L"LastSuccessfulSyncTime", 0, &v, &type, nullptr);
     variant_to_cpp_value(&v, type, &cpp_obj.LastSuccessfulSyncTime);
@@ -39,41 +38,11 @@ std::string Win32_FolderRedirectionHealth::to_string() const
   oss << "OfflineFileNameFolderGUID: " << (OfflineFileNameFolderGUID) << std::endl;
   return oss.str();
 }
-
-struct APIError
-{
-    APIError(const HRESULT result, const char* file, const int line);
-    APIError(const pugi::xml_parse_result result, const char* file, const int line);
-};
 std::vector<Win32_UserProfile> Win32_UserProfile::get_all_objects()
 {
   std::vector<Win32_UserProfile> result;
-  WMIProvider::get().query("select * from Win32_UserProfile", [&](IWbemClassObject* o, const WmiConnection& connection, const pugi::xml_document& doc) {
-      
+  WMIProvider::get().query("select * from Win32_UserProfile", [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc) {
     VARIANT v; CIMTYPE type; Win32_UserProfile cpp_obj;
-    o->Get(L"__PATH", 0, &v, &type, nullptr);
-    std::string object_path;
-    variant_to_cpp_value(&v, type, &object_path);
-    std::wstring wide_object_path;//(begin(object_path), end(object_path));
-    wide_object_path += L"/Documents";
-    BSTR bs = SysAllocStringLen(wide_object_path.data(), wide_object_path.size());
-    IWbemClassObject* embedded_object = nullptr;
-    HRESULT res = 0;
-    for(int i = 0; i < 4; ++i)
-    {
-        const auto context = WMIProvider::CreateContext(i);
-        res = connection._services->GetObjectW(bs, WBEM_FLAG_DIRECT_READ | WBEM_FLAG_RETURN_WBEM_COMPLETE, connection._context, &embedded_object, nullptr);
-        if(!FAILED(res))
-        {
-            printf("HOORAY!\n");
-            std::exit(0);
-        }
-        context->Release();
-    }
-    // select SavedGames from Win32_UserProfile where SID='S-1-5-21-1674461032-3140414312-556740297-7397' -- yeah, that's the guy!
-
-    o->Get(L"Documents", 0, &v, &type, nullptr);
-
     o->Get(L"RefCount", 0, &v, &type, nullptr);
     variant_to_cpp_value(&v, type, &cpp_obj.RefCount);
     o->Get(L"LastUseTime", 0, &v, &type, nullptr);

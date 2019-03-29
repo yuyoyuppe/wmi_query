@@ -123,7 +123,8 @@ project "tests"
   includedirs {paths.core, paths.generated_api}
   make_common_project_conf(paths.tests, true)
 
-
 project "pugixml"
   kind "StaticLib"
   make_common_project_conf(paths.deps.pugixml)
+
+startproject "tests"

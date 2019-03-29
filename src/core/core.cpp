@@ -33,13 +33,13 @@ IWbemContext * WMIProvider::CreateContext(const int pathLevel)
 
     VariantInit(&vValue);
     vValue.vt = VT_BOOL;
-    vValue.boolVal = VARIANT_FALSE;
+    vValue.boolVal = VARIANT_TRUE;
     context->SetValue(L"ExcludeSystemProperties", 0, &vValue);
     VariantClear(&vValue);
 
     VariantInit(&vValue);
     vValue.vt = VT_BOOL;
-    vValue.lVal = VARIANT_FALSE;
+    vValue.lVal = VARIANT_TRUE;
     context->SetValue(L"LocalOnly", 0, &vValue);
     VariantClear(&vValue);
 
