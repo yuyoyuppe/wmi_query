@@ -2,6 +2,17 @@
 #include "pch.h"
 #include "wmi_classes.h"
 
+namespace wmi{
+
+template<typename...T>
+void get_fields(IWbemClassObject* o, T... names_and_fields)
+{
+  VARIANT v; CIMTYPE type;
+  constexpr size_t nArgs = sizeof...(names_and_fields);
+  (names_and_fields...)
+  o->Get(L"LastSuccessfulSyncTime", 0, &v, &type, nullptr);
+}
+
 std::vector<Win32_FolderRedirectionHealth> Win32_FolderRedirectionHealth::get_all_objects()
 {
   std::vector<Win32_FolderRedirectionHealth> result;
@@ -101,3 +112,5 @@ std::string Win32_UserProfile::to_string() const
   oss << "Special: " << std::to_string(Special) << std::endl;
   return oss.str();
 }
+
+} //namespace wmi

@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include <chrono>
+
+namespace wmi{
 struct Win32_FolderRedirectionHealth
 {
   std::string LastSuccessfulSyncTime;
@@ -13,6 +15,7 @@ struct Win32_FolderRedirectionHealth
   std::string OfflineFileNameFolderGUID;
 
   static std::vector<Win32_FolderRedirectionHealth> get_all_objects();
+
   std::string to_string() const;
 };
 
@@ -35,7 +38,6 @@ struct Win32_UserProfile
   bool RoamingPreference;
   bool Special;
 
-// object!
   Win32_FolderRedirectionHealth AppDataRoaming;
   Win32_FolderRedirectionHealth Desktop;
   Win32_FolderRedirectionHealth StartMenu;
@@ -54,3 +56,5 @@ struct Win32_UserProfile
   std::string to_string() const;
 };
 
+
+} //namespace wmi

@@ -10,6 +10,7 @@
 #include <codecvt>
 #include <variant>
 #include <chrono>
+#include <tuple>
 
 #define _WIN32_DCOM
 #include <comdef.h>

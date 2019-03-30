@@ -4,6 +4,7 @@ language "C++"
 system "windows"
 architecture "x86_64"
 cppdialect "C++17"
+startproject "tests"
 
 paths = {
   core = "src/core/",
@@ -68,6 +69,7 @@ local function make_common_project_conf(src_path, use_pch)
     pchheader "pch.h"
     pchsource (src_path .. "pch.cpp")
   end
+  flags {"FatalWarnings", "MultiProcessorCompile"}
   includedirs{src_path, paths.build}
   basedir (src_path)
   targetdir (paths.build .. "bin")
@@ -126,5 +128,3 @@ project "tests"
 project "pugixml"
   kind "StaticLib"
   make_common_project_conf(paths.deps.pugixml)
-
-startproject "tests"

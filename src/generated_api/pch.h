@@ -9,6 +9,6 @@
 #include <sstream>
 #include <clocale>
 #include <ctime>
-
+#include <tuple>
 
 #include <core.h>

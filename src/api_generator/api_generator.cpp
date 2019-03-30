@@ -160,22 +160,39 @@ std::unordered_set<WMIClassDescription> build_wmi_classes_descriptions(const WMI
   return result;
 }
 
-// todo: don't use streams
-void generate_header_preambule(std::ostream& s)
+void generate_header_prologue(std::ostream& s)
 {
   s << R"d(#pragma once
 #include <string>
 #include <vector>
 #include <chrono>
+
+namespace wmi{
 )d";
 }
 
-void generate_source_preambule(std::ostream& s)
+void generate_source_prologue(std::ostream& s)
 {
   s << R"d(
 #include "pch.h"
 #include "wmi_classes.h"
 
+namespace wmi{
+)d";
+}
+
+
+void generate_header_epilogue(std::ostream& s)
+{
+  s << R"d(
+} //namespace wmi
+)d";
+}
+
+void generate_source_epilogue(std::ostream& s)
+{
+  s << R"d(
+} //namespace wmi
 )d";
 }
 
@@ -189,7 +206,7 @@ void generate_class_declaration(const WMIClassDescription& class_desc, std::ostr
   }
   if(size(class_desc._object_properties))
   {
-    s << '\n' << "// object!\n";
+    s << '\n';
     for(const auto& prop_info : class_desc._object_properties)
     {
       s << "  " << prop_info._type << " " << prop_info._name << ";\n";
@@ -250,10 +267,10 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
   s << "}\n";
 }
 
-auto get_wmi_classes_topology(const std::unordered_set<WMIClassDescription>& unsorted_classes)
+auto get_class_declaration_order_and_remove_unknown_object_properties(const std::unordered_set<WMIClassDescription>& unsorted_classes)
 {
   std::vector<const WMIClassDescription*> result;
-  std::unordered_set<size_t> visited_classes; // permanent?
+  std::unordered_set<size_t> visited_classes;
 
   std::hash<WMIClassDescription> hasher;
 
@@ -274,6 +291,8 @@ auto get_wmi_classes_topology(const std::unordered_set<WMIClassDescription>& uns
       }
       else
       {
+        // std::unordered_* containers give us const iters, so we don't change an item's hash without notice;
+        // WMIClassDescription is hashed only by _name which we won't touch, so it's safe to cast here
         it = const_cast<WMIClassDescription&>(class_desc)._object_properties.erase(it);
       }
     }
@@ -315,18 +334,20 @@ void filter_wmi_classes(std::unordered_set<WMIClassDescription> & wmi_classes, c
 void generate_api(const WMIProvider& wmi_service, std::ostream& header, std::ostream& source)
 {
   auto wmi_classes = build_wmi_classes_descriptions(wmi_service);
-  //debug
   filter_wmi_classes(wmi_classes, {"Win32_FolderRedirectionHealth", "Win32_UserProfile"});
 
-  const auto topology = get_wmi_classes_topology(wmi_classes);
-  generate_header_preambule(header);
-  generate_source_preambule(source);
+  const auto topology = get_class_declaration_order_and_remove_unknown_object_properties(wmi_classes);
+  generate_header_prologue(header);
+  generate_source_prologue(source);
 
   for(const auto class_desc : topology)
   {
     generate_class_declaration(*class_desc, header);
     generate_class_definition(*class_desc, source);
   }
+
+  generate_header_epilogue(header);
+  generate_source_epilogue(source);
 }
 
 int main()
