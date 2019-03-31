@@ -12,3 +12,5 @@
 #include <tuple>
 
 #include <core.h>
+
+#include "wmi_api.h"

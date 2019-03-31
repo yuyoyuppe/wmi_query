@@ -201,43 +201,58 @@ void generate_class_declaration(const WMIClassDescription& class_desc, std::ostr
   s << "struct " << class_desc._name << '\n';
   s << "{" << '\n';
   for(const auto& prop_info : class_desc._properties)
-  {
     s << "  " << prop_info._type << " " << prop_info._name << ";\n";
-  }
   if(size(class_desc._object_properties))
   {
     s << '\n';
     for(const auto& prop_info : class_desc._object_properties)
-    {
       s << "  " << prop_info._type << " " << prop_info._name << ";\n";
-    }
   }
   s << '\n';
   s << "  static std::vector<" << class_desc._name << "> get_all_objects();\n";
   s << "  std::string to_string() const;\n";
+  s << "  static void deserialize(IWbemClassObject* const source, " << class_desc._name << "& destination);";
   s << "};\n\n";
 }
 
 void generate_class_definition(const WMIClassDescription& class_desc, std::ostream& s)
 {
+  // deserialize
+  s << "void " << class_desc._name << "::deserialize(IWbemClassObject* const source, " << class_desc._name << "& destination)\n";
+  s << "{\n";
+  const size_t nProperties = size(class_desc._properties);
+  if(nProperties != 0)
+  {
+    s << "    fill_wmi_properties(source, " << nProperties << ",\n";
+    size_t i = 0;
+    for(const auto& prop_desc : class_desc._properties)
+    {
+      s << "      L\"" << prop_desc._name << "\", &destination." << prop_desc._name;
+      const bool is_last_property = ++i == nProperties;
+      s << (is_last_property ? ");\n" : ",\n");
+    }
+  }
+  const size_t nObjectProperties = size(class_desc._object_properties);
+  if(nObjectProperties)
+  {
+    for(const auto& obj_prop_desc : class_desc._object_properties)
+    {
+      //s << "  " << obj_prop_desc._type << "::deserialize(o, cpp_obj);\n";
+    }
+  }
+  s << "}\n\n";
+
+  // query
   s << "std::vector<" << class_desc._name << "> " << class_desc._name << "::get_all_objects()\n";
   s << "{\n";
   s << "  std::vector<" << class_desc._name << "> result;\n";
   s << "  WMIProvider::get().query(\"select * from " << class_desc._name << '"' << ", [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc) {\n";
-  const bool has_properties = size(class_desc._properties);
-  if(has_properties)
-    s << "    VARIANT v; CIMTYPE type; ";
-  s << class_desc._name << " cpp_obj;\n";
-  for(const auto& prop_desc : class_desc._properties)
-  {
-    s << "    o->Get(L\"" << prop_desc._name << "\", 0, &v, &type, nullptr);\n";
-    s << "    variant_to_cpp_value(&v, type, &cpp_obj." << prop_desc._name << ");\n";
-  }
-  s << "    result.emplace_back(std::move(cpp_obj));";
-  if(has_properties)
-    s << "VariantClear(&v);\n";
+  s << "    " << class_desc._name << " cpp_obj;\n";
+  s << "    " << class_desc._name << "::deserialize(o, cpp_obj);\n";
+  s << "    result.emplace_back(std::move(cpp_obj));\n";
   s << "  });\n";
   s << "  return result;\n";
+
   s << "}\n\n";
   s << "std::string " << class_desc._name << "::to_string() const\n";
   s << "{\n";

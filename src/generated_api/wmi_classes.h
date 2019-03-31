@@ -15,9 +15,8 @@ struct Win32_FolderRedirectionHealth
   std::string OfflineFileNameFolderGUID;
 
   static std::vector<Win32_FolderRedirectionHealth> get_all_objects();
-
   std::string to_string() const;
-};
+  static void deserialize(IWbemClassObject* const source, Win32_FolderRedirectionHealth& destination);};
 
 struct Win32_UserProfile
 {
@@ -54,7 +53,7 @@ struct Win32_UserProfile
 
   static std::vector<Win32_UserProfile> get_all_objects();
   std::string to_string() const;
-};
+  static void deserialize(IWbemClassObject* const source, Win32_UserProfile& destination);};
 
 
 } //namespace wmi
