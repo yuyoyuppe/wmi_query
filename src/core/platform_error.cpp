@@ -12,12 +12,12 @@ APIError::APIError(const HRESULT result, const char* file, const int line)
     char* error_msg;
     FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
       nullptr,
-      error_code,
+      result,
       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
       reinterpret_cast<LPSTR>(&error_msg),
       0,
       nullptr);
-    log(error, "winapi call at %s:%d failed: %s", file, line, error_msg);
+    log(error, "winapi call at %s:%d failed with %lu: %s", file, line, error_code, error_msg);
     LocalFree(error_msg);
     if constexpr(konst::use_exceptions)
       throw result;

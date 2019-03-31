@@ -8,6 +8,7 @@ using namespace wmi;
 
 int main()
 {
+
   for(const auto& obj : wmi::Win32_UserProfile::get_all_objects())
   {
     const auto str = obj.to_string();

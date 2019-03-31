@@ -21,7 +21,7 @@ IWbemContext * WMIProvider::CreateContext(const int pathLevel)
 
     VariantInit(&vValue);
     vValue.vt = VT_BOOL;
-    vValue.boolVal = VARIANT_TRUE;
+    vValue.boolVal = VARIANT_FALSE;
     context->SetValue(L"IncludeQualifiers", 0, &vValue);
     VariantClear(&vValue);
 
@@ -152,6 +152,7 @@ void WMIProvider::query(const char * query_string, std::function<void(IWbemClass
       callback(pclsObj, connection, doc);
       pclsObj->Release();
       SysFreeString(objText);
+      objTextSrc->Release();
     }
     pEnumerator->Release();
 

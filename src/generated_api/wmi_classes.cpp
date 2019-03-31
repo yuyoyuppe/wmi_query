@@ -5,7 +5,7 @@
 namespace wmi{
 void Win32_FolderRedirectionHealth::deserialize(IWbemClassObject* const source, Win32_FolderRedirectionHealth& destination)
 {
-    fill_wmi_properties(source, 7,
+    deserialize_wmi_properties(source, 7,
       L"LastSuccessfulSyncTime", &destination.LastSuccessfulSyncTime,
       L"HealthStatus", &destination.HealthStatus,
       L"Redirected", &destination.Redirected,
@@ -39,23 +39,23 @@ std::string Win32_FolderRedirectionHealth::to_string() const
 }
 void Win32_UserProfile::deserialize(IWbemClassObject* const source, Win32_UserProfile& destination)
 {
-    fill_wmi_properties(source, 16,
-      L"RefCount", &destination.RefCount,
-      L"LastUseTime", &destination.LastUseTime,
-      L"HealthStatus", &destination.HealthStatus,
-      L"LastUploadTime", &destination.LastUploadTime,
-      L"LastAttemptedProfileDownloadTime", &destination.LastAttemptedProfileDownloadTime,
-      L"LastDownloadTime", &destination.LastDownloadTime,
-      L"LastAttemptedProfileUploadTime", &destination.LastAttemptedProfileUploadTime,
-      L"LastBackgroundRegistryUploadTime", &destination.LastBackgroundRegistryUploadTime,
-      L"Loaded", &destination.Loaded,
-      L"LocalPath", &destination.LocalPath,
-      L"RoamingConfigured", &destination.RoamingConfigured,
-      L"Status", &destination.Status,
-      L"SID", &destination.SID,
-      L"RoamingPath", &destination.RoamingPath,
-      L"RoamingPreference", &destination.RoamingPreference,
-      L"Special", &destination.Special);
+    //deserialize_wmi_properties(source, 16,
+    //  L"RefCount", &destination.RefCount,
+    //  L"LastUseTime", &destination.LastUseTime,
+    //  L"HealthStatus", &destination.HealthStatus,
+    //  L"LastUploadTime", &destination.LastUploadTime,
+    //  L"LastAttemptedProfileDownloadTime", &destination.LastAttemptedProfileDownloadTime,
+    //  L"LastDownloadTime", &destination.LastDownloadTime,
+    //  L"LastAttemptedProfileUploadTime", &destination.LastAttemptedProfileUploadTime,
+    //  L"LastBackgroundRegistryUploadTime", &destination.LastBackgroundRegistryUploadTime,
+    //  L"Loaded", &destination.Loaded,
+    //  L"LocalPath", &destination.LocalPath,
+    //  L"RoamingConfigured", &destination.RoamingConfigured,
+    //  L"Status", &destination.Status,
+    //  L"SID", &destination.SID,
+    //  L"RoamingPath", &destination.RoamingPath,
+    //  L"RoamingPreference", &destination.RoamingPreference,
+    //  L"Special", &destination.Special);
 }
 std::vector<Win32_UserProfile> Win32_UserProfile::get_all_objects()
 {
@@ -63,6 +63,14 @@ std::vector<Win32_UserProfile> Win32_UserProfile::get_all_objects()
   WMIProvider::get().query("select * from Win32_UserProfile", [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc) {
     Win32_UserProfile cpp_obj;
     Win32_UserProfile::deserialize(o, cpp_obj);
+    pugi::xml_node desc = doc.child("INSTANCE");
+    for(pugi::xml_node prop : desc.children("PROPERTY"))
+    {
+      std::cout << "prop: " << prop.attribute("NAME").as_string() << " = " << prop.child_value("VALUE") << std::endl;
+    }
+
+    //deserialize_wmi_object_property(o, "Win32_UserProfile", "Documents", cpp_obj.Documents);
+      
     result.emplace_back(std::move(cpp_obj));
   });
   return result;

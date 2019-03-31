@@ -211,7 +211,7 @@ void generate_class_declaration(const WMIClassDescription& class_desc, std::ostr
   s << '\n';
   s << "  static std::vector<" << class_desc._name << "> get_all_objects();\n";
   s << "  std::string to_string() const;\n";
-  s << "  static void deserialize(IWbemClassObject* const source, " << class_desc._name << "& destination);";
+  s << "  static void deserialize(IWbemClassObject* const source, " << class_desc._name << "& destination);\n";
   s << "};\n\n";
 }
 
@@ -223,7 +223,7 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
   const size_t nProperties = size(class_desc._properties);
   if(nProperties != 0)
   {
-    s << "    fill_wmi_properties(source, " << nProperties << ",\n";
+    s << "    deserialize_wmi_properties(source, " << nProperties << ",\n";
     size_t i = 0;
     for(const auto& prop_desc : class_desc._properties)
     {
