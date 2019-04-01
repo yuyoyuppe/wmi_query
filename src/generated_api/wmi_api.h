@@ -1,26 +1,34 @@
 #include "pch.h"
-#include <iostream>
 namespace wmi
 {
-  void deserialize_wmi_properties(IWbemClassObject* o, const int nProperties, ...);
+  template<typename Type, typename T = void>
+  struct Deserialize;
 
-  template<typename ObjectT>
-  void deserialize_wmi_object_property(IWbemClassObject* parent_object, const char* parent_object_type, const char* object_type, ObjectT& destination)
+  template<typename Type>
+  struct Deserialize<Type, void>
   {
-    VARIANT v; CIMTYPE type;
-    parent_object->Get(L"__PATH", 0, &v, &type, nullptr);
-    string_t query_str;
-    variant_to_cpp_value(&v, type, &query_str);
-    std::string search_str{":"};
-    search_str += parent_object_type;
-    search_str += '.';
-    query_str = std::string{"select "} + object_type + " from " + parent_object_type + " where " +
-      query_str.substr(query_str.find(search_str) + size(search_str), size(query_str) - size(search_str));
-    WMIProvider::get().query(query_str.c_str(), [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc)
+    static std::enable_if_t<std::is_arithmetic_v<Type>> to(Type& property_destination, const char* source)
     {
-      ObjectT::deserialize(o, destination);
-    });
-    VariantClear(&v);
+      if(auto [_, ec] = std::from_chars(source, source + strlen(source), property_destination); ec != std::errc())
+        property_destination = {};
+    }
+  };
 
-  }
+  template<>
+  struct Deserialize<std::string>
+  {
+    static void to(std::string& property_destination, const char* source)
+    {
+      property_destination = source;
+    }
+  };
+
+  template<>
+  struct Deserialize<bool>
+  {
+    static void to(bool& property_destination, const char* source)
+    {
+      property_destination = !strcmp("TRUE", source);
+    }
+  };
 }

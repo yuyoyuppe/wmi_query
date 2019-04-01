@@ -141,11 +141,10 @@ WMIClassDescription build_wmi_class_description(IWbemClassObject* pclsObj, const
     cof_type_string_to_cpp_type(prop);
     desc._properties.emplace(std::move(prop));
   }
-  for(pugi::xml_node n : xml_class.children("PROPERTY.OBJECT"))
+  for(pugi::xml_node o : xml_class.children("PROPERTY.OBJECT"))
   {
-    desc._object_properties.emplace(WMIClassProperty{ n.attribute("NAME").as_string(), n.attribute("REFERENCECLASS").as_string() });
+    desc._object_properties.emplace(WMIClassProperty{ o.attribute("NAME").as_string(), o.attribute("REFERENCECLASS").as_string() });
   }
-
   remove_length_properties(desc);
   return desc;
 }
@@ -166,6 +165,7 @@ void generate_header_prologue(std::ostream& s)
 #include <string>
 #include <vector>
 #include <chrono>
+#include <pugixml.hpp>
 
 namespace wmi{
 )d";
@@ -211,25 +211,21 @@ void generate_class_declaration(const WMIClassDescription& class_desc, std::ostr
   s << '\n';
   s << "  static std::vector<" << class_desc._name << "> get_all_objects();\n";
   s << "  std::string to_string() const;\n";
-  s << "  static void deserialize(IWbemClassObject* const source, " << class_desc._name << "& destination);\n";
+  s << "  static void deserialize(const pugi::xml_document& doc, " << class_desc._name << "& destination);\n";
   s << "};\n\n";
 }
 
 void generate_class_definition(const WMIClassDescription& class_desc, std::ostream& s)
 {
   // deserialize
-  s << "void " << class_desc._name << "::deserialize(IWbemClassObject* const source, " << class_desc._name << "& destination)\n";
+  s << "void " << class_desc._name << "::deserialize(const pugi::xml_document& doc, " << class_desc._name << "& destination)\n";
   s << "{\n";
   const size_t nProperties = size(class_desc._properties);
   if(nProperties != 0)
   {
-    s << "    deserialize_wmi_properties(source, " << nProperties << ",\n";
-    size_t i = 0;
     for(const auto& prop_desc : class_desc._properties)
     {
-      s << "      L\"" << prop_desc._name << "\", &destination." << prop_desc._name;
-      const bool is_last_property = ++i == nProperties;
-      s << (is_last_property ? ");\n" : ",\n");
+      s << "  Deserialize<" << prop_desc._type << ">::to(destination." << prop_desc._name << R"(, doc.select_node("INSTANCE/PROPERTY[@NAME=\")" << prop_desc._name << "\\\"]/VALUE\").node().text().as_string());\n";
     }
   }
   const size_t nObjectProperties = size(class_desc._object_properties);
@@ -237,7 +233,7 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
   {
     for(const auto& obj_prop_desc : class_desc._object_properties)
     {
-      //s << "  " << obj_prop_desc._type << "::deserialize(o, cpp_obj);\n";
+      s << "  " << obj_prop_desc._type << "::deserialize(" ", cpp_obj);\n";
     }
   }
   s << "}\n\n";
@@ -248,7 +244,7 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
   s << "  std::vector<" << class_desc._name << "> result;\n";
   s << "  WMIProvider::get().query(\"select * from " << class_desc._name << '"' << ", [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc) {\n";
   s << "    " << class_desc._name << " cpp_obj;\n";
-  s << "    " << class_desc._name << "::deserialize(o, cpp_obj);\n";
+  s << "    " << class_desc._name << "::deserialize(doc, cpp_obj);\n";
   s << "    result.emplace_back(std::move(cpp_obj));\n";
   s << "  });\n";
   s << "  return result;\n";
@@ -349,7 +345,9 @@ void filter_wmi_classes(std::unordered_set<WMIClassDescription> & wmi_classes, c
 void generate_api(const WMIProvider& wmi_service, std::ostream& header, std::ostream& source)
 {
   auto wmi_classes = build_wmi_classes_descriptions(wmi_service);
-  filter_wmi_classes(wmi_classes, {"Win32_FolderRedirectionHealth", "Win32_UserProfile"});
+  //filter_wmi_classes(wmi_classes, {"WmiMonitorID"});
+  filter_wmi_classes(wmi_classes, {"Win32_UserProfile", "Win32_FolderRedirectionHealth"});
+  
 
   const auto topology = get_class_declaration_order_and_remove_unknown_object_properties(wmi_classes);
   generate_header_prologue(header);

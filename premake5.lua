@@ -75,6 +75,7 @@ local function make_common_project_conf(src_path, use_pch)
   targetdir (paths.build .. "bin")
   objdir (paths.build .. "obj")
   files {src_path .. "**.cpp", src_path .. "**.h"}
+  linkoptions { "-IGNORE:4221" }
   filter "configurations:Debug"
     symbols "On"
     runtime "Debug"
@@ -122,7 +123,7 @@ project "generated_api"
 project "tests"
   kind "ConsoleApp"
   links { "generated_api" }
-  includedirs {paths.core, paths.generated_api}
+  includedirs {paths.core, paths.generated_api, paths.deps.pugixml}
   make_common_project_conf(paths.tests, true)
 
 project "pugixml"

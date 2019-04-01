@@ -12,5 +12,8 @@
 #include <tuple>
 
 #include <core.h>
+#include <inttypes.h>
+#include <iostream>
+#include <charconv>
 
 #include "wmi_api.h"
