@@ -5,32 +5,22 @@
 #include <vector>
 #include <pugixml.hpp>
 
-struct IWbemLocator;
-struct IWbemServices;
-struct IWbemClassObject;
 
+namespace wmi{
 string_t wstring_to_string_t(const std::wstring & ws);
-
-struct WmiConnection
-{
-    IWbemLocator * _locator = nullptr;
-    IWbemServices * _services = nullptr;
-    IWbemContext * _context = nullptr;
-};
 
 class WMIProvider
 {
-
-  std::vector<WmiConnection> _connections;
+  struct impl;
+  std::unique_ptr<impl> _impl;
+  
   WMIProvider(const std::vector<std::wstring_view>& namespaces_to_use = {L"ROOT\\wmi", L"Root\\CIMV2"});
 public:
-  ~WMIProvider();
+  
   static WMIProvider& get();
-  void query(const char * query_string, std::function<void(IWbemClassObject*, const WmiConnection&, const pugi::xml_document&)> callback) const;
+  static void uninitialize();
 
-  static IWbemContext * CreateContext(const int pathLevel = 0); //for debug
+  void query(const char * query_string, std::function<void(const pugi::xml_document&)> callback) const;
 };
 
-constexpr int CIM_UINT16LIST = 8210;
-
-void variant_to_cpp_value(const void * variant, const long type, void * output_value);
+}

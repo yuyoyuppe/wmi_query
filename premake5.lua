@@ -13,7 +13,8 @@ paths = {
   tests = "src/tests/",
   build = "build/",
   deps = {
-    pugixml = "deps/pugixml/src/"
+    pugixml = "deps/pugixml/src/",
+    fmt = "deps/fmt/"
   }
 }
 location(paths.build)
@@ -74,7 +75,7 @@ local function make_common_project_conf(src_path, use_pch)
   basedir (src_path)
   targetdir (paths.build .. "bin")
   objdir (paths.build .. "obj")
-  files {src_path .. "**.cpp", src_path .. "**.h"}
+  files {src_path .. "**.cpp", src_path .. "**.cc", src_path .. "**.h"}
   linkoptions { "-IGNORE:4221" }
   filter "configurations:Debug"
     symbols "On"
@@ -105,10 +106,11 @@ project "core"
 
 project "api_generator"
   kind "ConsoleApp"
+  defines {"FMT_HEADER_ONLY"}
   generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"' },
                             paths.build .. "generator_common_constants.h")
   links { "core", "pugixml" }
-  includedirs {paths.core, paths.deps.pugixml}
+  includedirs {paths.core, paths.deps.pugixml, paths.deps.fmt .. 'include/'}
   make_common_project_conf(paths.api_generator, true)
 
 project "generated_api"
@@ -129,3 +131,4 @@ project "tests"
 project "pugixml"
   kind "StaticLib"
   make_common_project_conf(paths.deps.pugixml)
+

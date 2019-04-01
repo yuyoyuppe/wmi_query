@@ -2,46 +2,78 @@
 
 #include "core.h"
 
+_COM_SMARTPTR_TYPEDEF(IWbemServices, IID_IWbemServices); 
+_COM_SMARTPTR_TYPEDEF(IWbemLocator, IID_IWbemLocator);
+_COM_SMARTPTR_TYPEDEF(IWbemContext, IID_IWbemContext);
+_COM_SMARTPTR_TYPEDEF(IEnumWbemClassObject, IID_IEnumWbemClassObject);
+_COM_SMARTPTR_TYPEDEF(IWbemClassObject, IID_IWbemClassObject);
+_COM_SMARTPTR_TYPEDEF(IWbemObjectTextSrc, IID_IWbemObjectTextSrc);
+
+namespace wmi{
+struct WmiConnection
+{
+  IWbemLocatorPtr _locator;
+  IWbemServicesPtr _services;
+  IWbemContextPtr _context;
+};
+
+struct WMIProvider::impl
+{
+  std::vector<WmiConnection> _connections;
+};
+
+WMIProvider* instance = nullptr;
+std::once_flag instance_initialized;
+
 WMIProvider& WMIProvider::get()
 {
-  static WMIProvider instance;
-  return instance;
+  std::call_once(instance_initialized, [&]
+  {
+    instance = new WMIProvider();
+  });
+
+  return *instance;
 }
 
-IWbemContext * WMIProvider::CreateContext(const int pathLevel)
+void WMIProvider::uninitialize()
 {
-    IWbemContext *context = nullptr;
+  if(instance)
+  {
+    delete instance;
+    CoUninitialize();
+  }
+}
+
+IWbemContextPtr CreateContext()
+{
+    IWbemContextPtr context;
     CHECKED(CoCreateInstance(CLSID_WbemContext,
         nullptr,
         CLSCTX_INPROC_SERVER,
         IID_IWbemContext,
         (void**)&context));
 
-    VARIANT vValue;
+    _variant_t vValue;
 
-    VariantInit(&vValue);
     vValue.vt = VT_BOOL;
     vValue.boolVal = VARIANT_FALSE;
     context->SetValue(L"IncludeQualifiers", 0, &vValue);
-    VariantClear(&vValue);
+    vValue.Clear();
 
-    VariantInit(&vValue);
     vValue.vt = VT_I4;
-    vValue.lVal = pathLevel;
+    vValue.lVal = 0;
     context->SetValue(L"PathLevel", 0, &vValue);
-    VariantClear(&vValue);
+    vValue.Clear();
 
-    VariantInit(&vValue);
     vValue.vt = VT_BOOL;
     vValue.boolVal = VARIANT_TRUE;
     context->SetValue(L"ExcludeSystemProperties", 0, &vValue);
-    VariantClear(&vValue);
+    vValue.Clear();
 
-    VariantInit(&vValue);
     vValue.vt = VT_BOOL;
     vValue.lVal = VARIANT_TRUE;
     context->SetValue(L"LocalOnly", 0, &vValue);
-    VariantClear(&vValue);
+    vValue.Clear();
 
     return context;
 }
@@ -49,6 +81,8 @@ IWbemContext * WMIProvider::CreateContext(const int pathLevel)
 
 WMIProvider::WMIProvider(const std::vector<std::wstring_view>& namespaces_to_use)
 {
+  _impl = std::make_unique<impl>();
+
   CHECKED(CoInitializeEx(0, COINIT_MULTITHREADED));
 
   CHECKED(CoInitializeSecurity(
@@ -62,11 +96,11 @@ WMIProvider::WMIProvider(const std::vector<std::wstring_view>& namespaces_to_use
     EOAC_NONE,
     nullptr
   ));
-  _connections.reserve(size(namespaces_to_use));
+  _impl->_connections.reserve(size(namespaces_to_use));
   for(const auto& namespace_to_use : namespaces_to_use)
   {
-    IWbemLocator * locator = nullptr;
-    IWbemServices * services = nullptr;
+    IWbemLocatorPtr locator;
+    IWbemServicesPtr services;
     CHECKED(CoCreateInstance(
       CLSID_WbemLocator,
       0,
@@ -94,68 +128,50 @@ WMIProvider::WMIProvider(const std::vector<std::wstring_view>& namespaces_to_use
       nullptr,
       EOAC_NONE
     ));
-    IWbemContext *context = CreateContext();
-    _connections.emplace_back(WmiConnection{locator, services, context});
+    auto context = CreateContext();
+    _impl->_connections.emplace_back(WmiConnection{locator, services, context});
   }
 }
 
-WMIProvider::~WMIProvider()
+void WMIProvider::query(const char * query_string, std::function<void(const pugi::xml_document&)> callback) const
 {
-  for(const auto& c : _connections)
+  for(const auto& connection : _impl->_connections)
   {
-    if(c._services)
-      c._services->Release();
-    if(c._locator)
-      c._locator->Release();
-  }
-
-  CoUninitialize();
-}
-void WMIProvider::query(const char * query_string, std::function<void(IWbemClassObject*, const WmiConnection&, const pugi::xml_document&)> callback) const
-{
-  for(const auto& connection : _connections)
-  {
-    IEnumWbemClassObject* pEnumerator = nullptr;
+    IEnumWbemClassObjectPtr enum_class_obj;
     CHECKED(connection._services->ExecQuery(
       bstr_t("WQL"),
       bstr_t(query_string),
       WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
       nullptr,
-      &pEnumerator));
-    IWbemClassObject *pclsObj = nullptr;
-    ULONG uReturn = 0;
-    while(pEnumerator)
+      &enum_class_obj));
+    IWbemClassObjectPtr class_obj;
+    ULONG ret = 0;
+    while(enum_class_obj)
     {
-      HRESULT hr = pEnumerator->Next(WBEM_INFINITE, 1,
-        &pclsObj, &uReturn);
+      enum_class_obj->Next(WBEM_INFINITE, 1,
+        &class_obj, &ret);
 
-      if(0 == uReturn)
-      {
+      if(0 == ret)
         break;
-      }
-      IWbemObjectTextSrc *objTextSrc = nullptr;
+      IWbemObjectTextSrcPtr obj_text_src;
 
       CHECKED(CoCreateInstance(CLSID_WbemObjectTextSrc,
           nullptr,
           CLSCTX_INPROC_SERVER,
           IID_IWbemObjectTextSrc,
-          (void**)&objTextSrc));
-      BSTR objText;
-      CHECKED(objTextSrc->GetText(0,
-          pclsObj,
+          (void**)&obj_text_src));
+      
+      _bstr_t obj_text;
+      CHECKED(obj_text_src->GetText(0,
+          class_obj,
           WMI_OBJ_TEXT_CIM_DTD_2_0,
           connection._context,
-          &objText));
-      const auto xml_buf_len = SysStringLen(objText) * sizeof(wchar_t);
+          obj_text.GetAddress()));
+      const auto xml_buf_len = obj_text.length() * sizeof(wchar_t);
       pugi::xml_document doc;
-      CHECKED(doc.load_buffer_inplace(objText, xml_buf_len, 116U, pugi::encoding_utf16_le));
-      callback(pclsObj, connection, doc);
-      pclsObj->Release();
-      SysFreeString(objText);
-      objTextSrc->Release();
+      CHECKED((doc.load_buffer_inplace(static_cast<wchar_t*>(obj_text), xml_buf_len, 116U, pugi::encoding_utf16_le)));
+      callback(doc);
     }
-    pEnumerator->Release();
-
   }
 }
 
@@ -163,83 +179,4 @@ string_t wstring_to_string_t(const std::wstring & ws)
 {
   return std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}.to_bytes(ws);
 }
-
-void variant_to_cpp_value(const void* v_untyped, const long type, void * output_value)
-{
-  const VARIANT& v = *static_cast<const VARIANT*>(v_untyped);
-  const bool empty = v.vt < 2;
-    switch(type)
-    {
-    case CIM_SINT8:
-      *reinterpret_cast<int8_t*>(output_value) = v.cVal;
-      return;
-    case CIM_SINT16:
-      *reinterpret_cast<int16_t*>(output_value) = v.iVal;
-      return;
-    case CIM_SINT32:
-      *reinterpret_cast<int32_t*>(output_value) = v.intVal;
-      return;
-    case CIM_SINT64:
-      *reinterpret_cast<int64_t*>(output_value) = v.lVal;
-      return;
-    case CIM_UINT8:
-      *reinterpret_cast<uint8_t*>(output_value) = v.bVal;
-      return;
-    case CIM_UINT16:
-      *reinterpret_cast<uint16_t*>(output_value) = v.uiVal;
-      return;
-    case CIM_UINT32:
-      *reinterpret_cast<uint32_t*>(output_value) = v.uintVal;
-      return;
-    case CIM_UINT64:
-      *reinterpret_cast<uint64_t*>(output_value) = v.ulVal;
-      return;
-    case CIM_REAL32:
-      *reinterpret_cast<float*>(output_value) = v.fltVal;
-      return;
-    case CIM_REAL64:
-      *reinterpret_cast<double*>(output_value) = v.dblVal;
-      return;
-    case CIM_BOOLEAN:
-      *reinterpret_cast<bool*>(output_value) = v.boolVal == VARIANT_TRUE;
-      return;
-    case CIM_STRING:
-    case CIM_DATETIME: // don't assume user preference :)
-      *reinterpret_cast<string_t*>(output_value) = empty? "" : wstring_to_string_t(v.bstrVal);
-      return;
-    case CIM_UINT16LIST:
-    {
-      std::string val;
-      long iMin, iMax;
-      SafeArrayGetLBound(v.parray, 1, &iMin);
-      SafeArrayGetUBound(v.parray, 1, &iMax);
-      val.resize(iMax - iMin + 1);
-      int idx = 0;
-#ifdef _DEBUG
-      VARTYPE elem_type;
-      SafeArrayGetVartype(v.parray, &elem_type);
-#endif
-      for(long i = iMin; i <= iMax; ++i)
-      {
-        SafeArrayGetElement(v.parray, &i, &val[idx]);
-        if(val[idx++] == '\0')
-          break;
-      }
-      val.resize(idx - 1);
-      *reinterpret_cast<std::string*>(output_value) = std::move(val);
-
-    }
-    case CIM_REFERENCE:
-      // todo
-      break;
-    case CIM_CHAR16:
-      // todo
-      //result.emplace<>(v.pdispVal)
-      break;
-    case CIM_OBJECT:
-    case CIM_FLAG_ARRAY:
-    default:
-      log(error, "unknown variant type:%ld", type);
-      break;
-    }
 }
