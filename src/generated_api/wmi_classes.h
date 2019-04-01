@@ -17,7 +17,7 @@ struct Win32_FolderRedirectionHealth
 
   static std::vector<Win32_FolderRedirectionHealth> get_all_objects();
   std::string to_string() const;
-  static void deserialize(const pugi::xml_document& doc, Win32_FolderRedirectionHealth& destination);
+  static void deserialize(const pugi::xml_node& doc, Win32_FolderRedirectionHealth& destination);
 };
 
 struct Win32_UserProfile
@@ -55,7 +55,7 @@ struct Win32_UserProfile
 
   static std::vector<Win32_UserProfile> get_all_objects();
   std::string to_string() const;
-  static void deserialize(const pugi::xml_document& doc, Win32_UserProfile& destination);
+  static void deserialize(const pugi::xml_node& doc, Win32_UserProfile& destination);
 };
 
 

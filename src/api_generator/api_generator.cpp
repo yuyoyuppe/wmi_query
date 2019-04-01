@@ -211,21 +211,21 @@ void generate_class_declaration(const WMIClassDescription& class_desc, std::ostr
   s << '\n';
   s << "  static std::vector<" << class_desc._name << "> get_all_objects();\n";
   s << "  std::string to_string() const;\n";
-  s << "  static void deserialize(const pugi::xml_document& doc, " << class_desc._name << "& destination);\n";
+  s << "  static void deserialize(const pugi::xml_node& doc, " << class_desc._name << "& destination);\n";
   s << "};\n\n";
 }
 
 void generate_class_definition(const WMIClassDescription& class_desc, std::ostream& s)
 {
   // deserialize
-  s << "void " << class_desc._name << "::deserialize(const pugi::xml_document& doc, " << class_desc._name << "& destination)\n";
+  s << "void " << class_desc._name << "::deserialize(const pugi::xml_node& doc, " << class_desc._name << "& destination)\n";
   s << "{\n";
   const size_t nProperties = size(class_desc._properties);
   if(nProperties != 0)
   {
     for(const auto& prop_desc : class_desc._properties)
     {
-      s << "  Deserialize<" << prop_desc._type << ">::to(destination." << prop_desc._name << R"(, doc.select_node("INSTANCE/PROPERTY[@NAME=\")" << prop_desc._name << "\\\"]/VALUE\").node().text().as_string());\n";
+      s << "  Deserialize<" << prop_desc._type << ">::to(destination." << prop_desc._name << R"(, doc.select_node("PROPERTY[@NAME=\")" << prop_desc._name << "\\\"]/VALUE\").node().text().as_string());\n";
     }
   }
   const size_t nObjectProperties = size(class_desc._object_properties);
@@ -233,7 +233,7 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
   {
     for(const auto& obj_prop_desc : class_desc._object_properties)
     {
-      s << "  " << obj_prop_desc._type << "::deserialize(" ", cpp_obj);\n";
+      s << "  " << obj_prop_desc._type << "::deserialize(" << R"(doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\")" << obj_prop_desc._name << R"(\"]/INSTANCE").node(), destination.)" << obj_prop_desc._name << ");\n";
     }
   }
   s << "}\n\n";
@@ -244,12 +244,14 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
   s << "  std::vector<" << class_desc._name << "> result;\n";
   s << "  WMIProvider::get().query(\"select * from " << class_desc._name << '"' << ", [&](IWbemClassObject* o, const WmiConnection&, const pugi::xml_document& doc) {\n";
   s << "    " << class_desc._name << " cpp_obj;\n";
-  s << "    " << class_desc._name << "::deserialize(doc, cpp_obj);\n";
+  s << "    " << class_desc._name << "::deserialize(doc.child(\"INSTANCE\"), cpp_obj);\n";
   s << "    result.emplace_back(std::move(cpp_obj));\n";
   s << "  });\n";
   s << "  return result;\n";
 
   s << "}\n\n";
+
+  // to_string
   s << "std::string " << class_desc._name << "::to_string() const\n";
   s << "{\n";
   s << "  std::ostringstream oss;\n";
@@ -274,6 +276,11 @@ void generate_class_definition(const WMIClassDescription& class_desc, std::ostre
     }
     s << ") << std::endl;\n";
   }
+  for(const auto& obj_prop_desc : class_desc._object_properties)
+  {
+    s << "  oss << \"" << obj_prop_desc._name << ": \" << " << obj_prop_desc._name << ".to_string() << std::endl;\n";
+  }
+
   s << "  return oss.str();\n";
   s << "}\n";
 }
