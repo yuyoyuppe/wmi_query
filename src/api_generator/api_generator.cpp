@@ -108,14 +108,14 @@ void remove_length_properties(std::unordered_set<PropType>& ... prop_sets)
     }
     return 0;
   };
-  int unfold[] = {find_length_props(prop_sets)...};
+  int unfold[] = { find_length_props(prop_sets)... };
 }
 
 void type_str_to_cpp_type(std::string & type_str)
 {
   const auto undecay = [&](const std::string_view decayed_type) -> std::string
   {
-      return { cbegin(decayed_type), cend(decayed_type) };
+    return { cbegin(decayed_type), cend(decayed_type) };
   };
 
   if(type_str == "sint8") type_str = undecay("int8_t");
@@ -212,78 +212,44 @@ namespace wmi{
 
 void generate_source_prologue(std::ostream& s)
 {
-  s << R"d(
+  s << R"(
 #include "pch.h"
 #include "wmi_classes.h"
 
 namespace wmi{
-)d";
+)";
 }
 
 
 void generate_header_epilogue(std::ostream& s)
 {
-  s << R"d(
+  s << R"(
 } //namespace wmi
-)d";
+)";
 }
 
 void generate_source_epilogue(std::ostream& s)
 {
-  s << R"d(
+  s << R"(
 } //namespace wmi
-)d";
-}
-
-constexpr const char * class_definition_t = R"(
-void ${class_name}::deserialize(const pugi::xml_node& doc, ${class_name}& destination)
-{
-@prop_desc
-{{
-  Deserialize<${_type}>::to(destination.${_name}, 
-    doc.select_node("PROPERTY[@NAME=\"${_name}\"]/VALUE").node().text().as_string());
-}}
-
-@obj_prop_desc
-{{
-  ${{_type}}::deserialize(
-    doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\"${_name}\"]/INSTANCE").node(),            
-    destination.${_name});
-}}
-
-??has_array_properties
-{{
-  pugi::xpath_node_set nodes;
-}}
-
-@array_prop_desc
-{{
-
-}}
-
 )";
-
-namespace fmt
-{
-  auto arg(const char* name, const memory_buffer& buf)
-  {
-    static std::string empty = "";
-    return buf.size()? arg(name, std::string_view{buf.data(), buf.size()}) : arg(name, std::string_view{empty});
-  }
 }
+
+#define STRINGIFY(a) STRINGIFY_(a)
+#define STRINGIFY_(a) #a
+#define SV_ARG(name) fmt::arg(STRINGIFY(name), std::string_view{ name.data(), name.size() })
 
 void generate_class_declaration(const WMIClass& class_desc, std::ostream& s)
 {
   fmt::memory_buffer props;
   for(const auto& prop_info : class_desc._simple_properties)
     fmt::format_to(props, "  {} {};\n", prop_info._type, prop_info._name);
-  
+
   fmt::memory_buffer array_props;
   for(const auto& array_prop_info : class_desc._array_properties)
   {
     const bool fixed_size = array_prop_info._length.has_value();
-    const char* container_type = fixed_size? "std::array<" : "std::vector<";
-    fmt::format_to(array_props, "  {} {}", container_type, array_prop_info._element_type);
+    fmt::format_to(array_props, fixed_size ? "  std::array<{}" : "  std::vector<{}", array_prop_info._element_type);
     if(fixed_size)
       fmt::format_to(array_props, ", {}", *array_prop_info._length);
     fmt::format_to(array_props, "> {};\n", array_prop_info._name);
@@ -294,108 +260,159 @@ void generate_class_declaration(const WMIClass& class_desc, std::ostream& s)
     fmt::format_to(object_props, "  {} {};\n", prop_info._type, prop_info._name);
 
   fmt::memory_buffer result;
-
   fmt::format_to(result, R"(
 struct {class_name}
 {{
-  {props}
-  {array_props}
-  {object_props}
+{props}
+{array_props}
+{object_props}
+  static void deserialize(const pugi::xml_node& doc, {class_name}& destination);
   static std::vector<{class_name}> get_all_objects();
   std::string to_string() const;
-  static void deserialize(const pugi::xml_node& doc, {class_name}& destination);
 }};
-)", fmt::arg("class_name", class_desc._name), fmt::arg("props", props), fmt::arg("array_props", array_props), fmt::arg("object_props", object_props));
-  s << std::string_view{result.data(), result.size()};
+)", fmt::arg("class_name", class_desc._name), SV_ARG(props), SV_ARG(array_props), SV_ARG(object_props));
+  s.write(result.data(), result.size());
 }
 
-void generate_class_definition(const WMIClass& class_desc, std::ostream& s)
+fmt::memory_buffer generate_deserialize_func(const WMIClass& class_desc)
 {
-  // deserialize
-  s << "void " << class_desc._name << "::deserialize(const pugi::xml_node& doc, " << class_desc._name << "& destination)\n";
-  s << "{\n";
+  fmt::memory_buffer props;
   for(const auto& prop_desc : class_desc._simple_properties)
   {
-    s << "  Deserialize<" << prop_desc._type << ">::to(destination." << prop_desc._name << R"(, doc.select_node("PROPERTY[@NAME=\")" << prop_desc._name << "\\\"]/VALUE\").node().text().as_string());\n";
+    fmt::format_to(props, R"(  Deserialize<{type}>::to(destination.{name}, 
+    doc.select_node("PROPERTY[@NAME=\"{name}\"]/VALUE").node().text().as_string());
+)", fmt::arg("type", prop_desc._type), fmt::arg("name", prop_desc._name));
   }
-
+  fmt::memory_buffer object_props;
   for(const auto& obj_prop_desc : class_desc._object_properties)
   {
-    s << "  " << obj_prop_desc._type << "::deserialize(" << R"(doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\")" << obj_prop_desc._name << R"(\"]/INSTANCE").node(), destination.)" << obj_prop_desc._name << ");\n";
+    fmt::format_to(object_props, R"(  {type}::deserialize(
+    doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\"{name}\"]/INSTANCE").node(),            
+    destination.{name});
+)", fmt::arg("type", obj_prop_desc._type), fmt::arg("name", obj_prop_desc._name));
   }
 
+  fmt::memory_buffer array_props;
   if(!class_desc._array_properties.empty())
-    s << "  pugi::xpath_node_set nodes;\n";
+    fmt::format_to(array_props, "  pugi::xpath_node_set nodes;\n");
 
   for(const auto& array_prop_desc : class_desc._array_properties)
   {
     const bool fixed_size = array_prop_desc._length.has_value();
-    s << R"(  nodes = doc.select_node("PROPERTY.ARRAY[@NAME=\")" << array_prop_desc._name << R"(\"]/VALUE.ARRAY").node().select_nodes("VALUE");)" << '\n';
+    fmt::format_to(array_props, R"(
+  nodes = doc.select_node("PROPERTY.ARRAY[@NAME=\"{}\"]/VALUE.ARRAY").node().select_nodes("VALUE");
+)", array_prop_desc._name);
+
     if(!fixed_size)
-      s << "  destination." << array_prop_desc._name << ".resize(nodes.size());\n";
-    s << "  for(int i = 0; i < "; 
-    if(fixed_size) 
-      s << *array_prop_desc._length; 
+      fmt::format_to(array_props, "  destination.{}.resize(nodes.size());\n", array_prop_desc._name);
+
+    if(fixed_size)
+      fmt::format_to(array_props, "  for(int i = 0; i < {}; ++i)\n", *array_prop_desc._length);
     else
-      s << "nodes.size()";
-    s << "; ++i)\n";
+      fmt::format_to(array_props, "  for(int i = 0; i < nodes.size(); ++i)\n");
 
-    s << "    Deserialize<" << array_prop_desc._element_type << ">::to(destination." << array_prop_desc._name << "[i], nodes[i].node().text().as_string());\n";
+    fmt::format_to(array_props, R"(    Deserialize<{type}>::to(destination.{name}[i], nodes[i].node().text().as_string());)", fmt::arg("type", array_prop_desc._element_type), fmt::arg("name", array_prop_desc._name));
   }
-  s << "}\n\n";
 
-  // query
-  s << "std::vector<" << class_desc._name << "> " << class_desc._name << "::get_all_objects()\n";
-  s << "{\n";
-  s << "  std::vector<" << class_desc._name << "> result;\n";
-  s << "  WMIProvider::get().query(\"select * from " << class_desc._name << '"' << ", [&](const pugi::xml_document& doc) {\n";
-  s << "    " << class_desc._name << " cpp_obj;\n";
-  s << "    " << class_desc._name << "::deserialize(doc.child(\"INSTANCE\"), cpp_obj);\n";
-  s << "    result.emplace_back(std::move(cpp_obj));\n";
-  s << "  });\n";
-  s << "  return result;\n";
+  fmt::memory_buffer deserialize;
+  fmt::format_to(deserialize, R"(
+void {class_name}::deserialize(const pugi::xml_node& doc, {class_name}& destination)
+{{
+{props}
+{array_props}
+{object_props}}}
+)", fmt::arg("class_name", class_desc._name), SV_ARG(props), SV_ARG(array_props), SV_ARG(object_props));
+  return deserialize;
+}
 
-  s << "}\n\n";
+fmt::memory_buffer generate_get_all_objects_func(const WMIClass& class_desc)
+{
+  fmt::memory_buffer query;
+  fmt::format_to(query, R"(
+std::vector<{class_name}> {class_name}::get_all_objects()
+{{
+  std::vector<{class_name}> result;
+  WMIProvider::get().query("select * from {class_name}", [&](const pugi::xml_document& doc) {{
+    {class_name} cpp_obj;
+    {class_name}::deserialize(doc.child("INSTANCE"), cpp_obj);
+    result.emplace_back(std::move(cpp_obj));
+  }});
+  return result;
+}}
+)", fmt::arg("class_name", class_desc._name));
+  return query;
+}
 
-  // to_string
-  s << "std::string " << class_desc._name << "::to_string() const\n";
-  s << "{\n";
-  s << "  std::ostringstream oss;\n";
-
-  const auto generate_to_string_for_simple_property = [&s](const std::string_view name, const string_t& type)
+fmt::memory_buffer generate_to_string_func(const WMIClass& class_desc)
+{
+  fmt::memory_buffer func;
+  const auto generate_to_string_for_simple_property = [](fmt::memory_buffer & b, const std::string_view name, const string_t& type)
   {
     const bool is_string = type == "std::string";
     const bool is_time = type == "std::time_t";
     if(is_string)
-      s << '(' << name << ')';
+      fmt::format_to(b, name);
     else if(is_time)
-      s << "asctime(localtime(&" << name << ')';
+      fmt::format_to(b, "asctime(localtime(&{})", name);
     else
-      s << "std::to_string(" << name << ')';
+      fmt::format_to(b, "std::to_string({})", name);
   };
 
+  fmt::memory_buffer props;
   for(const auto&prop_desc : class_desc._simple_properties)
   {
-    s << "  oss << \"" << prop_desc._name << ": \" << ";
-    generate_to_string_for_simple_property(prop_desc._name, prop_desc._type);
-    s << " << std::endl;\n";
+    fmt::format_to(props, R"(  ((result += "{}: ") += )", prop_desc._name);
+    generate_to_string_for_simple_property(props, prop_desc._name, prop_desc._type);
+    fmt::format_to(props, ") += '\\n';\n");
   }
+
+  fmt::memory_buffer array_props;
   for(const auto&array_prop_desc : class_desc._array_properties)
   {
-    s << "  oss << \"" << array_prop_desc._name << ": \";\n";
-    s << "  for(const auto & e : " << array_prop_desc._name << ")\n";
-    s << "    oss << "; generate_to_string_for_simple_property("e", array_prop_desc._element_type); 
-    s << " << ' ';\n";
-    s << "  oss << std::endl;\n";
+    fmt::format_to(array_props, R"(
+  result += "{name}: ";
+  for(const auto & e : {name})
+      (result += )", fmt::arg("name", array_prop_desc._name));
+    generate_to_string_for_simple_property(array_props, "e", array_prop_desc._element_type);
+    fmt::format_to(array_props, ") += ' ';\n");
+    fmt::format_to(array_props, "  result += '\\n';\n");
   }
 
+  fmt::memory_buffer object_props;
   for(const auto& obj_prop_desc : class_desc._object_properties)
   {
-    s << "  oss << \"" << obj_prop_desc._name << ": \" << " << obj_prop_desc._name << ".to_string() << std::endl;\n";
+    fmt::format_to(object_props, R"(  ((result += "{name}: ") += {name}.to_string()) += '\n';
+)", fmt::arg("name", obj_prop_desc._name));
   }
 
-  s << "  return oss.str();\n";
-  s << "}\n";
+  fmt::format_to(func, R"(
+std::string {class_name}::to_string() const
+{{
+  std::string result;
+{props}
+{array_props}
+{object_props}
+  return result;
+}}
+)", fmt::arg("class_name", class_desc._name), SV_ARG(props), SV_ARG(array_props), SV_ARG(object_props));
+  return func;
+}
+
+
+
+void generate_class_definition(const WMIClass& class_desc, std::ostream& s)
+{
+  auto deserialize = generate_deserialize_func(class_desc);
+  auto get_all_objects = generate_get_all_objects_func(class_desc);
+  auto to_string = generate_to_string_func(class_desc);
+
+  fmt::memory_buffer class_definition;
+  fmt::format_to(class_definition, R"(
+{deserialize}
+{get_all_objects}
+{to_string}
+)", SV_ARG(deserialize), SV_ARG(get_all_objects), SV_ARG(to_string));
+  s.write(class_definition.data(), class_definition.size());
 }
 
 auto build_class_declaration_order_and_remove_undefined_object_properties(const std::unordered_set<WMIClass>& unsorted_classes)
@@ -486,7 +503,7 @@ int main()
   std::ofstream wmi_classes_source{ konst::wmi_path + "/wmi_classes.cpp"s };
 
   auto wmi_classes = build_wmi_classes_descriptions(wmi_service);
-  filter_wmi_classes(wmi_classes, {"WmiMonitorID"});
+  //filter_wmi_classes(wmi_classes, { "WmiMonitorID" });
   //filter_wmi_classes(wmi_classes, { "Win32_UserProfile", "Win32_FolderRedirectionHealth" });
 
   generate_api(wmi_service, wmi_classes, wmi_classes_header, wmi_classes_source);

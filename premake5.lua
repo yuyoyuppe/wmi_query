@@ -116,9 +116,9 @@ project "api_generator"
 project "generated_api"
   kind "StaticLib"
   links { "core" }
-  defines {"_CRT_SECURE_NO_WARNINGS"}
+  defines {"_CRT_SECURE_NO_WARNINGS", "FMT_HEADER_ONLY"}
   buildoptions {"/bigobj"}
-  includedirs {paths.core, paths.deps.pugixml}
+  includedirs {paths.core, paths.deps.pugixml, paths.deps.fmt .. 'include/'}
   make_common_project_conf(paths.generated_api, true)
   optimize "Size"
 
