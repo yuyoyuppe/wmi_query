@@ -1,4 +1,5 @@
 #include "pch.h"
+
 namespace wmi
 {
   template<typename Type, typename T = void>
@@ -24,9 +25,25 @@ namespace wmi
   };
 
   template<>
+  struct Deserialize<wchar_t>
+  {
+    static void to(wchar_t& property_destination, const char* source)
+    {
+      size_t res;
+      mbstowcs_s(&res, &property_destination, 1, source, 1);  
+    }
+  };
+  
+
+  template<>
   struct Deserialize<bool>
   {
     static void to(bool& property_destination, const char* source)
+    {
+      property_destination = !strcmp("TRUE", source);
+    }
+
+    static void to(std::vector<bool>::reference property_destination, const char* source)
     {
       property_destination = !strcmp("TRUE", source);
     }

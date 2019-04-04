@@ -184,6 +184,7 @@ WMIClass build_wmi_class_description(const pugi::xml_document& doc)
     desc._array_properties.emplace(std::move(prop));
   }
   remove_length_properties(desc._simple_properties, desc._array_properties);
+
   return desc;
 }
 
@@ -204,7 +205,7 @@ void generate_header_prologue(std::ostream& s)
 #include <vector>
 #include <chrono>
 #include <array>
-#include <pugixml.hpp>
+#include <wmi_api.h>
 
 namespace wmi{
 )d";
@@ -214,6 +215,7 @@ void generate_source_prologue(std::ostream& s)
 {
   s << R"(
 #include "pch.h"
+#include <core.h>
 #include "wmi_classes.h"
 
 namespace wmi{
@@ -266,7 +268,7 @@ struct {class_name}
 {props}
 {array_props}
 {object_props}
-  static void deserialize(const pugi::xml_node& doc, {class_name}& destination);
+  static void deserialize(void * src, {class_name}& destination);
   static std::vector<{class_name}> get_all_objects();
   std::string to_string() const;
 }};
@@ -287,7 +289,7 @@ fmt::memory_buffer generate_deserialize_func(const WMIClass& class_desc)
   for(const auto& obj_prop_desc : class_desc._object_properties)
   {
     fmt::format_to(object_props, R"(  {type}::deserialize(
-    doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\"{name}\"]/INSTANCE").node(),            
+    &doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\"{name}\"]/INSTANCE").node(),            
     destination.{name});
 )", fmt::arg("type", obj_prop_desc._type), fmt::arg("name", obj_prop_desc._name));
   }
@@ -316,8 +318,9 @@ fmt::memory_buffer generate_deserialize_func(const WMIClass& class_desc)
 
   fmt::memory_buffer deserialize;
   fmt::format_to(deserialize, R"(
-void {class_name}::deserialize(const pugi::xml_node& doc, {class_name}& destination)
+void {class_name}::deserialize(void * src, {class_name}& destination)
 {{
+  const auto& doc = *reinterpret_cast<const pugi::xml_node*>(src);
 {props}
 {array_props}
 {object_props}}}
@@ -334,7 +337,7 @@ std::vector<{class_name}> {class_name}::get_all_objects()
   std::vector<{class_name}> result;
   WMIProvider::get().query("select * from {class_name}", [&](const pugi::xml_document& doc) {{
     {class_name} cpp_obj;
-    {class_name}::deserialize(doc.child("INSTANCE"), cpp_obj);
+    {class_name}::deserialize(&doc.child("INSTANCE"), cpp_obj);
     result.emplace_back(std::move(cpp_obj));
   }});
   return result;
@@ -459,7 +462,7 @@ auto build_class_declaration_order_and_remove_undefined_object_properties(const 
   return result;
 }
 
-void filter_wmi_classes(std::unordered_set<WMIClass> & wmi_classes, const std::vector<const char*> & whitelist)
+void filter_wmi_classes(std::unordered_set<WMIClass> & wmi_classes, const std::vector<std::string> & whitelist)
 {
   for(auto it = begin(wmi_classes); it != end(wmi_classes);)
   {
@@ -495,6 +498,32 @@ void generate_api(const WMIProvider& wmi_service, const std::unordered_set<WMICl
   generate_source_epilogue(source_file);
 }
 
+std::vector<std::string> resolve_required_classes_list(const std::unordered_set<WMIClass>& wmi_classes, const std::vector<const char*>& input_class_list)
+{
+  std::unordered_set<std::string_view> resolved_classes;
+  std::vector<std::string_view> classes_to_resolve{begin(input_class_list), end(input_class_list)};
+  while(!classes_to_resolve.empty())
+  {
+    WMIClass c{std::string{classes_to_resolve.back()}, {}}; // todo: unneeded allocations
+    auto wmi_class = wmi_classes.find(c);
+    if(wmi_class == end(wmi_classes))
+    {
+      log(error, "couldn't find %s class!", classes_to_resolve.back().data());
+      classes_to_resolve.pop_back();
+      continue;
+    }
+    for(const auto& nested_class : wmi_class->_object_properties)
+    {
+      if(!resolved_classes.count(nested_class._type))
+        classes_to_resolve.emplace_back(nested_class._type);
+
+    }
+    resolved_classes.emplace(classes_to_resolve.back());
+    classes_to_resolve.pop_back();
+  }
+  return {begin(resolved_classes), end(resolved_classes)};
+}
+
 int main()
 {
   WMIProvider& wmi_service = WMIProvider::get();
@@ -503,9 +532,11 @@ int main()
   std::ofstream wmi_classes_source{ konst::wmi_path + "/wmi_classes.cpp"s };
 
   auto wmi_classes = build_wmi_classes_descriptions(wmi_service);
-  //filter_wmi_classes(wmi_classes, { "WmiMonitorID" });
-  //filter_wmi_classes(wmi_classes, { "Win32_UserProfile", "Win32_FolderRedirectionHealth" });
-
+  if(konst::required_classes.size())
+  {
+    auto classes_to_generate = resolve_required_classes_list(wmi_classes, konst::required_classes);
+    filter_wmi_classes(wmi_classes, classes_to_generate);
+  }
   generate_api(wmi_service, wmi_classes, wmi_classes_header, wmi_classes_source);
   wmi_service.uninitialize();
   return 0;

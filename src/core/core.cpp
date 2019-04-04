@@ -71,7 +71,7 @@ IWbemContextPtr CreateContext()
     vValue.Clear();
 
     vValue.vt = VT_BOOL;
-    vValue.lVal = VARIANT_TRUE;
+    vValue.lVal = VARIANT_FALSE;
     context->SetValue(L"LocalOnly", 0, &vValue);
     vValue.Clear();
 

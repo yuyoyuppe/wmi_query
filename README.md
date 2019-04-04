@@ -1,18 +1,10 @@
-# Goal
-
-The main goal is to write this:
-```cpp 
-void good_code()
-```
-Instead of that:
-```cpp
-void bad_code()
-```
 # Description
-
-- Modern C++ library for a subset of WMI API
-- Strong typing: WMI classes are mapped to c++ classes through code generation
-- Ability to expose UTF-8 strings only
+This library provides modern C++ API for WMI interface. The main goal is to write this:
+```cpp
+for(const auto& o : wmi::WmiMonitorID::get_all_objects())
+  log(info, "got: %s", o.to_string().c_str());
+```
+instead of [that](https://docs.microsoft.com/en-us/windows/win32/wmisdk/example--getting-wmi-data-from-the-local-computer-asynchronously).
 
 # Usage
 ## Prerequisites
@@ -21,12 +13,8 @@ void bad_code()
 ## Build & Run
 ```cmd
 $ cd modern_wmi
-$ premake5 vs2017
+$ premake5 vs2017 --classes=Win32_UserProfile
 $ msbuild /p:Configuration=Release build\modern_wmi.sln
-$ 
 ```
-
-# Philosophy
-
-This project's programming model draws inspiration from Haskell evaluation strategy, i.e. I don't implement anything unless I really need it.
+Your newly generated API is ready: just use `wmi_classes.h` and `generated_api.lib` which don't require any additional dependencies!
 

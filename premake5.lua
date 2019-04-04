@@ -1,3 +1,12 @@
+-- candidates for testing methods:
+-- BcdObject
+-- Win32_NetworkAdapter // can disable it! no args though
+-- Win32_Printer // can rename!
+-- Win32_ComputerSystem // can rename too, multiple args!
+-- Win32_ScheduledJob // can create job! supports multiple arguments
+-- Win32_Product // Uninstall! good example for readme
+-- Win32_Process // Create! has object as it's argument!
+
 workspace "modern_wmi"
 configurations {"Debug", "Release"}
 language "C++"
@@ -5,6 +14,21 @@ system "windows"
 architecture "x86_64"
 cppdialect "C++17"
 startproject "tests"
+preferredtoolarchitecture "x86_64"
+
+newoption {
+  trigger     = "classes",
+  description = "A list of WMI classes that you want to generate API for; omit to generate ALL available classes",
+}
+local function get_required_classes()
+  if not _OPTIONS["classes"] then return "std::initializer_list<const char*>{}" end
+  local required_classes = '{'
+  for word in _OPTIONS["classes"]:gmatch('[^,%s]+') do
+    required_classes = required_classes .. '"' .. word .. '", '
+  end
+  required_classes = required_classes .. '}'
+  return required_classes
+end
 
 paths = {
   core = "src/core/",
@@ -70,12 +94,12 @@ local function make_common_project_conf(src_path, use_pch)
     pchheader "pch.h"
     pchsource (src_path .. "pch.cpp")
   end
-  flags {"FatalWarnings", "MultiProcessorCompile"}
+  flags { "FatalWarnings", "MultiProcessorCompile" }
   includedirs{src_path, paths.build}
   basedir (src_path)
   targetdir (paths.build .. "bin")
   objdir (paths.build .. "obj")
-  files {src_path .. "**.cpp", src_path .. "**.cc", src_path .. "**.h"}
+  files { src_path .. "**.cpp", src_path .. "**.cc", src_path .. "**.h" }
   linkoptions { "-IGNORE:4221" }
   filter "configurations:Debug"
     symbols "On"
@@ -83,7 +107,7 @@ local function make_common_project_conf(src_path, use_pch)
     defines { "DEBUG" }
     targetsuffix "_d"
   filter "configurations:Release"
-    -- symbols "Off"
+    symbols "Off"
     symbols "FastLink"
     defines { "NDEBUG" }
     runtime "Release"
@@ -100,14 +124,15 @@ project "core"
   {
     "_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING",
   }
-  links {"wbemuuid.lib", "pugixml"}
+  links { "wbemuuid.lib", "pugixml" }
   includedirs {paths.deps.pugixml}
   make_common_project_conf(paths.core, true)
 
 project "api_generator"
   kind "ConsoleApp"
-  defines {"FMT_HEADER_ONLY"}
-  generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"' },
+  defines { "FMT_HEADER_ONLY" }
+
+  generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"', required_classes = get_required_classes() },
                             paths.build .. "generator_common_constants.h")
   links { "core", "pugixml" }
   includedirs {paths.core, paths.deps.pugixml, paths.deps.fmt .. 'include/'}
@@ -116,19 +141,27 @@ project "api_generator"
 project "generated_api"
   kind "StaticLib"
   links { "core" }
-  defines {"_CRT_SECURE_NO_WARNINGS", "FMT_HEADER_ONLY"}
+  local buildmsg = "Generating WMI API for " .. (_OPTIONS["classes"] and _OPTIONS["classes"] or "ALL classes")
+  prebuildmessage (buildmsg)
+  dependson "api_generator"
+  filter "configurations:Debug"
+    prebuildcommands { path.getabsolute(paths.build .. "bin/api_generator_d.exe") }
+    filter "configurations:Release"
+    prebuildcommands { path.getabsolute(paths.build .. "bin/api_generator.exe") }
+  filter {}
+  defines { "_CRT_SECURE_NO_WARNINGS", "FMT_HEADER_ONLY" }
   buildoptions {"/bigobj"}
-  includedirs {paths.core, paths.deps.pugixml, paths.deps.fmt .. 'include/'}
+  includedirs {paths.core, paths.deps.pugixml}
   make_common_project_conf(paths.generated_api, true)
   optimize "Size"
 
 project "tests"
   kind "ConsoleApp"
   links { "generated_api" }
+  defines { "_CRT_SECURE_NO_WARNINGS", }
   includedirs {paths.core, paths.generated_api, paths.deps.pugixml}
   make_common_project_conf(paths.tests, true)
 
 project "pugixml"
   kind "StaticLib"
   make_common_project_conf(paths.deps.pugixml)
-

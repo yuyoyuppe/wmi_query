@@ -4,15 +4,11 @@
 
 #include <wmi_classes.h>
 
-using namespace wmi;
-
 int main()
 {
-  for(const auto& obj : wmi::WmiMonitorID::get_all_objects())
-  {
-    const auto str = obj.to_string();
-    log(info, "object:\n%s\n", str.c_str());
-  }
+  const auto objects = wmi::WmiMonitorID::get_all_objects();
+  for(const auto& o : objects)
+    log(info, "got: %s", o.to_string().c_str());
   
   return 0;
 }

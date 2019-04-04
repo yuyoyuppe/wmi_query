@@ -1,5 +1,4 @@
 #pragma once
-#include <array>
 
 enum log_verbosity : uint8_t
 {
