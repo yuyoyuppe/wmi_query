@@ -1,5 +1,10 @@
 #include "pch.h"
 
+namespace pugi 
+{
+  struct xml_node_struct;
+} // namespace pugi
+
 namespace wmi
 {
   template<typename Type, typename T = void>

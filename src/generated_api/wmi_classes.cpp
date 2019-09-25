@@ -6,9 +6,10 @@
 namespace wmi{
 
 
-void WmiMonitorID::deserialize(void * src, WmiMonitorID& destination)
+void WmiMonitorID::deserialize(pugi::xml_node_struct* src, WmiMonitorID& destination)
 {
-  const auto& doc = *reinterpret_cast<const pugi::xml_node*>(src);
+  const pugi::xml_node doc{src};
+  (void)destination;
   Deserialize<bool>::to(destination.Active, 
     doc.select_node("PROPERTY[@NAME=\"Active\"]/VALUE").node().text().as_string());
   Deserialize<uint8_t>::to(destination.WeekOfManufacture, 
@@ -41,7 +42,7 @@ std::vector<WmiMonitorID> WmiMonitorID::get_all_objects()
   std::vector<WmiMonitorID> result;
   WMIProvider::get().query("select * from WmiMonitorID", [&](const pugi::xml_document& doc) {
     WmiMonitorID cpp_obj;
-    WmiMonitorID::deserialize(&doc.child("INSTANCE"), cpp_obj);
+    WmiMonitorID::deserialize(doc.child("INSTANCE").internal_object(), cpp_obj);
     result.emplace_back(std::move(cpp_obj));
   });
   return result;

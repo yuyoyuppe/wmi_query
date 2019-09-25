@@ -88,7 +88,7 @@ void remove_length_properties(std::unordered_set<PropType>& ... prop_sets)
     return ((prop_sets.count(PropType{ prop_name_without_length, {} }) || ...));
   };
 
-  const auto find_length_props = [&](auto& props)
+  const auto clean_length_props = [&](auto& props)
   {
     for(auto it = begin(props); it != end(props);)
     {
@@ -101,51 +101,42 @@ void remove_length_properties(std::unordered_set<PropType>& ... prop_sets)
         continue;
       }
       const auto prop_name_without_length = prop_info._name.substr(0, size(prop_info._name) - suffix_len);
-      if(has_value_prop(prop_name_without_length))
-        it = props.erase(it);
-      else
-        ++it;
+      it = has_value_prop(prop_name_without_length)? props.erase(it) : ++it;
     }
     return 0;
   };
-  int unfold[] = { find_length_props(prop_sets)... };
+  int unfold[] = {clean_length_props(prop_sets)... };
+  (void)unfold;
 }
 
 void type_str_to_cpp_type(std::string & type_str)
 {
-  const auto undecay = [&](const std::string_view decayed_type) -> std::string
-  {
-    return { cbegin(decayed_type), cend(decayed_type) };
-  };
-
-  if(type_str == "sint8") type_str = undecay("int8_t");
-  else if(type_str == "uint8") type_str = undecay("uint8_t");
-  else if(type_str == "sint16") type_str = undecay("int16_t");
-  else if(type_str == "uint16") type_str = undecay("uint16_t");
-  else if(type_str == "sint32") type_str = undecay("int32_t");
-  else if(type_str == "uint32") type_str = undecay("uint32_t");
-  else if(type_str == "sint64") type_str = undecay("int64_t");
-  else if(type_str == "uint64") type_str = undecay("uint64_t");
-  else if(type_str == "boolean") type_str = undecay("bool");
-  else if(type_str == "real32") type_str = undecay("float");
-  else if(type_str == "real64") type_str = undecay("double");
-  else if(type_str == "string") type_str = undecay("std::string");
-  else if(type_str == "char16") type_str = undecay("wchar_t");
-  else if(type_str == "datetime") type_str = undecay("std::string");
+  if(type_str == "sint8") type_str = "int8_t";
+  else if(type_str == "uint8") type_str = "uint8_t";
+  else if(type_str == "sint16") type_str = "int16_t";
+  else if(type_str == "uint16") type_str = "uint16_t";
+  else if(type_str == "sint32") type_str = "int32_t";
+  else if(type_str == "uint32") type_str = "uint32_t";
+  else if(type_str == "sint64") type_str = "int64_t";
+  else if(type_str == "uint64") type_str = "uint64_t";
+  else if(type_str == "boolean") type_str = "bool";
+  else if(type_str == "real32") type_str = "float";
+  else if(type_str == "real64") type_str = "double";
+  else if(type_str == "string") type_str = "std::string";
+  else if(type_str == "char16") type_str = "wchar_t";
+  else if(type_str == "datetime") type_str = "std::string";
   else
   {
     log(error, "got property of unknown type %s!", type_str.c_str());
-    type_str = undecay(type_str);
   }
 }
 
 void unreserve_class_name(std::string& class_name)
 {
-  static const std::vector<const char*> reserved_strings = { "SuspendThread", "ResumeThread", "HeapFree", "HeapAlloc", "HeapCreate" };
-  for(const auto& reserved_string : reserved_strings)
+  for(const auto& reserved_class_name : konst::reserved_class_names)
   {
     bool processed = false;
-    while(class_name == reserved_string)
+    while(class_name == reserved_class_name)
     {
       class_name += "_";
       processed = true;
@@ -163,17 +154,17 @@ WMIClass build_wmi_class_description(const pugi::xml_document& doc)
   desc._name = xml_class.attribute("NAME").as_string();
   unreserve_class_name(desc._name);
 
-  for(pugi::xml_node p : xml_class.children("PROPERTY"))
+  for(const pugi::xml_node p : xml_class.children("PROPERTY"))
   {
     WMIProperty prop{ p.attribute("NAME").as_string(), p.attribute("TYPE").as_string() };
     type_str_to_cpp_type(prop._type);
     desc._simple_properties.emplace(std::move(prop));
   }
-  for(pugi::xml_node o : xml_class.children("PROPERTY.OBJECT"))
+  for(const pugi::xml_node o : xml_class.children("PROPERTY.OBJECT"))
   {
     desc._object_properties.emplace(WMIProperty{ o.attribute("NAME").as_string(), o.attribute("REFERENCECLASS").as_string() });
   }
-  for(pugi::xml_node o : xml_class.children("PROPERTY.ARRAY"))
+  for(const pugi::xml_node o : xml_class.children("PROPERTY.ARRAY"))
   {
     const size_t array_size = o.attribute("ARRAYSIZE").as_ullong();
     WMIArrayProperty prop{
@@ -268,7 +259,7 @@ struct {class_name}
 {props}
 {array_props}
 {object_props}
-  static void deserialize(void * src, {class_name}& destination);
+  static void deserialize(pugi::xml_node_struct * src, {class_name}& destination);
   static std::vector<{class_name}> get_all_objects();
   std::string to_string() const;
 }};
@@ -289,7 +280,7 @@ fmt::memory_buffer generate_deserialize_func(const WMIClass& class_desc)
   for(const auto& obj_prop_desc : class_desc._object_properties)
   {
     fmt::format_to(object_props, R"(  {type}::deserialize(
-    &doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\"{name}\"]/INSTANCE").node(),            
+    doc.select_node("INSTANCE/PROPERTY.OBJECT[@NAME=\"{name}\"]/INSTANCE").node().internal_object(),            
     destination.{name});
 )", fmt::arg("type", obj_prop_desc._type), fmt::arg("name", obj_prop_desc._name));
   }
@@ -318,9 +309,10 @@ fmt::memory_buffer generate_deserialize_func(const WMIClass& class_desc)
 
   fmt::memory_buffer deserialize;
   fmt::format_to(deserialize, R"(
-void {class_name}::deserialize(void * src, {class_name}& destination)
+void {class_name}::deserialize(pugi::xml_node_struct* src, {class_name}& destination)
 {{
-  const auto& doc = *reinterpret_cast<const pugi::xml_node*>(src);
+  const pugi::xml_node doc{{src}};
+  (void)destination;
 {props}
 {array_props}
 {object_props}}}
@@ -337,7 +329,7 @@ std::vector<{class_name}> {class_name}::get_all_objects()
   std::vector<{class_name}> result;
   WMIProvider::get().query("select * from {class_name}", [&](const pugi::xml_document& doc) {{
     {class_name} cpp_obj;
-    {class_name}::deserialize(&doc.child("INSTANCE"), cpp_obj);
+    {class_name}::deserialize(doc.child("INSTANCE").internal_object(), cpp_obj);
     result.emplace_back(std::move(cpp_obj));
   }});
   return result;
@@ -467,7 +459,7 @@ void filter_wmi_classes(std::unordered_set<WMIClass> & wmi_classes, const std::v
   for(auto it = begin(wmi_classes); it != end(wmi_classes);)
   {
     bool keep = false;
-    for(const auto name : whitelist)
+    for(const auto& name : whitelist)
     {
       if(it->_name == name)
       {
@@ -475,14 +467,11 @@ void filter_wmi_classes(std::unordered_set<WMIClass> & wmi_classes, const std::v
         break;
       }
     }
-    if(keep)
-      ++it;
-    else
-      it = wmi_classes.erase(it);
+    it = keep? ++it : wmi_classes.erase(it);
   }
 }
 
-void generate_api(const WMIProvider& wmi_service, const std::unordered_set<WMIClass>& wmi_classes, std::ostream& header_file, std::ostream& source_file)
+void generate_api(const std::unordered_set<WMIClass>& wmi_classes, std::ostream& header_file, std::ostream& source_file)
 {
   const auto topology = build_class_declaration_order_and_remove_undefined_object_properties(wmi_classes);
   generate_header_prologue(header_file);
@@ -537,7 +526,7 @@ int main()
     auto classes_to_generate = resolve_required_classes_list(wmi_classes, konst::required_classes);
     filter_wmi_classes(wmi_classes, classes_to_generate);
   }
-  generate_api(wmi_service, wmi_classes, wmi_classes_header, wmi_classes_source);
+  generate_api(wmi_classes, wmi_classes_header, wmi_classes_source);
   wmi_service.uninitialize();
   return 0;
 }

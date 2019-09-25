@@ -20,6 +20,17 @@ newoption {
   trigger     = "classes",
   description = "A list of WMI classes that you want to generate API for; omit to generate ALL available classes",
 }
+
+local function get_reserved_class_names()
+  local names = { "SuspendThread", "ResumeThread", "HeapFree", "HeapAlloc", "HeapCreate" }
+  local reserved_class_names = "std::initializer_list<const char*>{"--", " .. #names .. ">{";
+  for _, name in ipairs(names) do
+    reserved_class_names = reserved_class_names .. '"' .. name .. '", '
+  end
+  reserved_class_names = reserved_class_names .. "}"
+  return reserved_class_names
+end
+
 local function get_required_classes()
   if not _OPTIONS["classes"] then return "std::initializer_list<const char*>{}" end
   local required_classes = '{'
@@ -87,6 +98,7 @@ local function generate_constants_header(constants, file_path)
     tmp_file:close()
   end
   os.remove(tmp_filename)
+  files {file_path}
 end
 
 local function make_common_project_conf(src_path, use_pch)
@@ -94,6 +106,7 @@ local function make_common_project_conf(src_path, use_pch)
     pchheader "pch.h"
     pchsource (src_path .. "pch.cpp")
   end
+  warnings "Extra"
   flags { "FatalWarnings", "MultiProcessorCompile" }
   includedirs{src_path, paths.build}
   basedir (src_path)
@@ -132,7 +145,7 @@ project "api_generator"
   kind "ConsoleApp"
   defines { "FMT_HEADER_ONLY" }
 
-  generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"', required_classes = get_required_classes() },
+  generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"', required_classes = get_required_classes(), reserved_class_names = get_reserved_class_names() },
                             paths.build .. "generator_common_constants.h")
   links { "core", "pugixml" }
   includedirs {paths.core, paths.deps.pugixml, paths.deps.fmt .. 'include/'}

@@ -20,7 +20,7 @@ struct WmiMonitorID
   std::vector<uint16_t> UserFriendlyName;
 
 
-  static void deserialize(void * src, WmiMonitorID& destination);
+  static void deserialize(pugi::xml_node_struct * src, WmiMonitorID& destination);
   static std::vector<WmiMonitorID> get_all_objects();
   std::string to_string() const;
 };
