@@ -175,7 +175,6 @@ WMIClass build_wmi_class_description(const pugi::xml_document& doc)
     desc._array_properties.emplace(std::move(prop));
   }
   remove_length_properties(desc._simple_properties, desc._array_properties);
-
   return desc;
 }
 
@@ -410,7 +409,7 @@ void generate_class_definition(const WMIClass& class_desc, std::ostream& s)
   s.write(class_definition.data(), class_definition.size());
 }
 
-auto build_class_declaration_order_and_remove_undefined_object_properties(const std::unordered_set<WMIClass>& unsorted_classes)
+std::vector<const WMIClass *> build_class_declaration_order_and_remove_undefined_object_properties(const std::unordered_set<WMIClass>& unsorted_classes)
 {
   std::vector<const WMIClass*> result;
   std::unordered_set<size_t> visited_classes;
