@@ -299,9 +299,9 @@ fmt::memory_buffer generate_deserialize_func(const WMIClass& class_desc)
       fmt::format_to(array_props, "  destination.{}.resize(nodes.size());\n", array_prop_desc._name);
 
     if(fixed_size)
-      fmt::format_to(array_props, "  for(int i = 0; i < {}; ++i)\n", *array_prop_desc._length);
+      fmt::format_to(array_props, "  for(size_t i = 0; i < {}; ++i)\n", *array_prop_desc._length);
     else
-      fmt::format_to(array_props, "  for(int i = 0; i < nodes.size(); ++i)\n");
+      fmt::format_to(array_props, "  for(size_t i = 0; i < nodes.size(); ++i)\n");
 
     fmt::format_to(array_props, R"(    Deserialize<{type}>::to(destination.{name}[i], nodes[i].node().text().as_string());)", fmt::arg("type", array_prop_desc._element_type), fmt::arg("name", array_prop_desc._name));
   }

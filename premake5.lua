@@ -129,7 +129,7 @@ end
 
 project "core"
   kind "StaticLib"
-  generate_constants_header({ use_exceptions = false, use_utf8_strings = true},
+  generate_constants_header({ use_exceptions = true, use_utf8_strings = true},
                             paths.build .. "core_common_constants.h")
   generate_constants_header({ debug = { log_verbosity_level = "log_verbosity::verbose" }, release = { log_verbosity_level = "log_verbosity::info" }},
                             paths.build .. "core_log_constants.h")
@@ -144,6 +144,7 @@ project "core"
 project "api_generator"
   kind "ConsoleApp"
   defines { "FMT_HEADER_ONLY" }
+  disablewarnings {"4244"}
 
   generate_constants_header({ wmi_path = '"' .. path.getabsolute(paths.generated_api) .. '"', required_classes = get_required_classes(), reserved_class_names = get_reserved_class_names() },
                             paths.build .. "generator_common_constants.h")

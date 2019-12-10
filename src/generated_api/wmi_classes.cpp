@@ -22,17 +22,17 @@ void WmiMonitorID::deserialize(pugi::xml_node_struct* src, WmiMonitorID& destina
   pugi::xpath_node_set nodes;
 
   nodes = doc.select_node("PROPERTY.ARRAY[@NAME=\"ManufacturerName\"]/VALUE.ARRAY").node().select_nodes("VALUE");
-  for(int i = 0; i < 16; ++i)
+  for(size_t i = 0; i < 16; ++i)
     Deserialize<uint16_t>::to(destination.ManufacturerName[i], nodes[i].node().text().as_string());
   nodes = doc.select_node("PROPERTY.ARRAY[@NAME=\"ProductCodeID\"]/VALUE.ARRAY").node().select_nodes("VALUE");
-  for(int i = 0; i < 16; ++i)
+  for(size_t i = 0; i < 16; ++i)
     Deserialize<uint16_t>::to(destination.ProductCodeID[i], nodes[i].node().text().as_string());
   nodes = doc.select_node("PROPERTY.ARRAY[@NAME=\"SerialNumberID\"]/VALUE.ARRAY").node().select_nodes("VALUE");
-  for(int i = 0; i < 16; ++i)
+  for(size_t i = 0; i < 16; ++i)
     Deserialize<uint16_t>::to(destination.SerialNumberID[i], nodes[i].node().text().as_string());
   nodes = doc.select_node("PROPERTY.ARRAY[@NAME=\"UserFriendlyName\"]/VALUE.ARRAY").node().select_nodes("VALUE");
   destination.UserFriendlyName.resize(nodes.size());
-  for(int i = 0; i < nodes.size(); ++i)
+  for(size_t i = 0; i < nodes.size(); ++i)
     Deserialize<uint16_t>::to(destination.UserFriendlyName[i], nodes[i].node().text().as_string());
 }
 
