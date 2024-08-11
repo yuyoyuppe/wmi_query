@@ -1,6 +1,7 @@
 #pragma once
 #include "config.h"
 
+#include <memory>
 #include <functional>
 #include <vector>
 #include <pugixml.hpp>
